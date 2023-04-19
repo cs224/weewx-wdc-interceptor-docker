@@ -1,21 +1,60 @@
-version: "3.7"
-
 services:
-  weewx-python:
-    build: .
-    ports:
-      - 9877:9877
+  duplicati:
+    image: lscr.io/linuxserver/duplicati
+    environment:
+      - PUID=0 # 1000
+      - PGID=0 # 1000
+      - TZ=Europe/Berlin
+      - CLI_ARGS= #optional
     volumes:
-      - weewx-db:/home/weewx/archive
-      - weewx-html:/home/weewx/public_html
+      - /opt/weewx/data/duplicati/config:/config
+      - /opt/weewx/data:/source
+      - /opt/weewx/duplicati-backup:/target
+    ports:
+      - "127.0.0.1:2325:8200/tcp"
+  web:
+    image: nginx:1.23.0
+    networks:
+      - wxnet
+    ports:
+      - "127.0.0.1:2305:80/tcp"
+    depends_on:
+      - weewx
+    environment:
+      - TZ=Europe/Berlin
+      #- NGINX_HOST=<<YOUR-DOMAIN-NAME>>.com
+      #- NGINX_PORT=80
+    volumes:
+      - /opt/weewx/data/weewx/public_html:/usr/share/nginx/html:ro
+      # - /media/docker/volumes/ngnix/templates:/etc/nginx/templates
     restart: unless-stopped
-  weewx-web:
-    image: nginx:latest
+  weewx-wdc:
+    image: weewx-wdc:4.10.2
+    networks:
+      - wxnet
     ports:
-      - 8080:80
+      - "0.0.0.0:2324:2324/tcp"
+    init: true
+    restart: unless-stopped
+    # devices:
+    #   - "/dev/ttyUSB0:/dev/ttyUSB0"
+    # privileged: true
     volumes:
-      - weewx-html:/usr/share/nginx/html
+      - type: bind
+        source: /opt/weewx-wdc/data/weewx/data
+        target: /data
+      - type: bind
+        source: /opt/weewx-wdc/data/weewx/public_html
+        target: /home/weewx/public_html
+      - type: bind
+        source: /opt/weewx-wdc/data/weewx/archive
+        target: /home/weewx/archive
+    environment:
+      - TZ=Europe/Berlin
+      - TIMEZONE=Europe/Berlin
+      - WEEWX_UID=weewx
+      - WEEWX_GID=dialout
 
-volumes:
-  weewx-db:
-  weewx-html:
+networks:
+  wxnet:
+    driver: bridge
