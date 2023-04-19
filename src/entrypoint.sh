@@ -31,9 +31,9 @@ copy_default_config() {
   cp weewx.conf "${CONF_FILE}"
   echo "The default configuration has been copied."
   # Change the default location of the SQLITE database to the volume
-  echo "Setting SQLITE_ROOT to the container volume."
-  sed "s/SQLITE_ROOT =.*/SQLITE_ROOT = \/data/g" "${CONF_FILE}" > /tmp/weewx.conf
-  mv /tmp/weewx.conf "${CONF_FILE}"
+  #echo "Setting SQLITE_ROOT to the container volume."
+  #sed "s/SQLITE_ROOT =.*/SQLITE_ROOT = \/data/g" "${CONF_FILE}" > /tmp/weewx.conf
+  #mv /tmp/weewx.conf "${CONF_FILE}"
 }
 
 if [ "$1" = "--gen-test-config" ]; then
@@ -61,3 +61,14 @@ if [ ! -f "${CONF_FILE}" ]; then
 fi
 
 ./bin/weewxd "$@"
+
+# # start rsyslog
+# echo 'Starting rsyslog'
+# # remove lingering pid file
+# rm -f /run/rsyslogd.pid
+# # start service
+# service rsyslog start
+
+# # start weewx
+# echo 'Starting weewx'
+# "${WEEWX_HOME}"/bin/weewxd
