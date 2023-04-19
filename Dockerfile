@@ -21,6 +21,7 @@ ARG WEEWX_VERSION="4.10.2"
 ARG WDC_VERSION="v3.1.1"
 ARG WEEWX_UID=421
 ENV WEEWX_HOME="/home/weewx"
+ARG ARCHIVE="weewx-${WEEWX_VERSION}.tar.gz"
 
 EXPOSE 9877
 
@@ -44,7 +45,8 @@ RUN ln -sf /usr/share/zoneinfo/Europe/Berlin /etc/localtime
 
 WORKDIR /tmp
 
-RUN wget -nv -O "weewx-${WEEWX_VERSION}.tar.gz" "https://github.com/weewx/weewx/archive/refs/tags/v${WEEWX_VERSION}.tar.gz" &&\
+# wget -nv -O "weewx-${WEEWX_VERSION}.tar.gz" "https://github.com/weewx/weewx/archive/refs/tags/v${WEEWX_VERSION}.tar.gz" &&\ # RUN wget -O "${ARCHIVE}" "https://weewx.com/downloads/released_versions/${ARCHIVE}"
+RUN wget -nv -O "weewx-${WEEWX_VERSION}.tar.gz" "https://weewx.com/downloads/released_versions/${ARCHIVE}" &&\
     wget -nv -O "weewx-interceptor.zip" "https://github.com/matthewwall/weewx-interceptor/archive/master.zip" &&\
     wget -nv -O "weewx-wdc-${WDC_VERSION}.zip" "https://github.com/Daveiano/weewx-wdc/releases/download/${WDC_VERSION}/weewx-wdc-${WDC_VERSION}.zip" &&\
     wget -nv -O "weewx-dwd.zip" "https://github.com/roe-dl/weewx-DWD/archive/refs/heads/master.zip" &&\
