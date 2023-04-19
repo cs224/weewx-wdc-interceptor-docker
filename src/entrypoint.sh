@@ -1,110 +1,63 @@
-# syntax=docker/dockerfile:1
+#!/bin/bash
 
-ARG PYTHON_VERSION=3.11.2
-ARG WEEWX_UID=421
-ARG WEEWX_VERSION=4.10.2
-ARG WEEWX_HOME="/home/weewx"
-ARG WDC_VERSION="v3.1.1"
+set -o nounset
+set -o errexit
+set -o pipefail
 
-FROM --platform=$BUILDPLATFORM tonistiigi/xx AS xx
+CONF_FILE="/data/weewx.conf"
 
-FROM --platform=$BUILDPLATFORM python:${PYTHON_VERSION} as build-stage
+# echo version before starting syslog so we don't confound our tests
+if [ "$1" = "--version" ]; then
+  gosu weewx:weewx ./bin/weewxd --version
+  exit 0
+fi
 
-ARG WEEWX_VERSION
-ARG ARCHIVE="weewx-${WEEWX_VERSION}.tar.gz"
-ARG WEEWX_HOME
-ARG WDC_VERSION
+if [ "$(id -u)" = 0 ]; then
+  # set timezone using environment
+  ln -snf /usr/share/zoneinfo/"${TIMEZONE:-UTC}" /etc/localtime
+  # start the syslog daemon as root
+  /sbin/syslogd -n -S -O - &
+  if [ "${WEEWX_UID:-weewx}" != 0 ]; then
+    # drop privileges and restart this script
+    echo "Switching uid:gid to ${WEEWX_UID:-weewx}:${WEEWX_GID:-weewx}"
+    gosu "${WEEWX_UID:-weewx}:${WEEWX_GID:-weewx}" "$(readlink -f "$0")" "$@"
+    exit 0
+  fi
+fi
 
-COPY --from=xx / /
-RUN apt-get update && apt-get install -y clang lld
-ARG TARGETPLATFORM
-RUN xx-apt install -y libc6-dev
+copy_default_config() {
+  # create a default configuration on the data volume
+  echo "Creating a configration file on the container data volume."
+  cp weewx.conf "${CONF_FILE}"
+  echo "The default configuration has been copied."
+  # Change the default location of the SQLITE database to the volume
+  echo "Setting SQLITE_ROOT to the container volume."
+  sed "s/SQLITE_ROOT =.*/SQLITE_ROOT = \/data/g" "${CONF_FILE}" > /tmp/weewx.conf
+  mv /tmp/weewx.conf "${CONF_FILE}"
+}
 
-# RUN apk --no-cache add cargo gcc libffi-dev make musl-dev openssl-dev python3-dev tar
-RUN apt-get install -y wget
+if [ "$1" = "--gen-test-config" ]; then
+  copy_default_config
+  echo "Generating a test configuration."
+  ./bin/wee_config --reconfigure --no-prompt "${CONF_FILE}"
+  exit 0
+fi
 
-WORKDIR /tmp
-RUN \
-  --mount=type=cache,mode=0777,target=/var/cache/apt \
-  --mount=type=cache,mode=0777,target=/root/.cache/pip <<EOF
-apt-get update
-python -m pip install --upgrade pip
-pip install --upgrade virtualenv
-virtualenv /opt/venv
-EOF
+if [ "$1" = "--shell" ]; then
+  /bin/sh
+  exit $?
+fi
 
-COPY src/hashes README.md requirements.txt setup.py ./
-COPY src/_version.py ./src/_version.py
+if [ "$1" = "--upgrade" ]; then
+  ./bin/wee_config --upgrade --no-prompt --dist-config weewx.conf "${CONF_FILE}"
+  exit $?
+fi
 
-# Download sources and verify hashes
-RUN wget -O "${ARCHIVE}" "https://weewx.com/downloads/released_versions/${ARCHIVE}"
-RUN wget -O weewx-mqtt.zip https://github.com/matthewwall/weewx-mqtt/archive/master.zip
-RUN wget -O weewx-interceptor.zip https://github.com/matthewwall/weewx-interceptor/archive/master.zip
-RUN sha256sum -c < hashes
-RUN wget -nv -O "weewx-forecast.zip" "https://github.com/chaunceygardiner/weewx-forecast/archive/refs/heads/master.zip"
-RUN wget -nv -O "weewx-wdc-${WDC_VERSION}.zip" "https://github.com/Daveiano/weewx-wdc/releases/download/${WDC_VERSION}/weewx-wdc-${WDC_VERSION}.zip"
+if [ ! -f "${CONF_FILE}" ]; then
+  copy_default_config
+  echo "Running configuration tool."
+  ./bin/wee_config --reconfigure "${CONF_FILE}"
+  exit 1
+fi
 
-RUN mkdir ${WEEWX_HOME}
-# WeeWX setup
-RUN tar --extract --gunzip --directory /home/weewx --strip-components=1 --file "${ARCHIVE}"
-
-# Python setup
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-RUN pip install --no-cache --requirement requirements.txt
-
-RUN pip install --no-cache wheel setuptools
-RUN pip install --no-cache configobj paho-mqtt pyserial pyusb
-RUN pip install --no-cache Cheetah3
-RUN pip install --no-cache Pillow==9.4.0
-RUN pip install --no-cache ephem
-
-RUN mkdir /tmp/weewx-wdc/ &&\
-    unzip /tmp/weewx-wdc-${WDC_VERSION}.zip -d /tmp/weewx-wdc/
-
-WORKDIR ${WEEWX_HOME}
-
-RUN bin/wee_extension --install /tmp/weewx-mqtt.zip
-RUN bin/wee_extension --install /tmp/weewx-interceptor.zip
-RUN bin/wee_extension --install /tmp/weewx-forecast.zip
-RUN bin/wee_extension --install /tmp/weewx-wdc/
-RUN bin/wee_config --reconfigure --driver=user.interceptor --no-prompt
-
-RUN ls -l ./skins
-RUN ls -l ./skins/weewx-wdc
-RUN wget -nv -O ./skins/weewx-wdc/skin.conf https://raw.githubusercontent.com/Daveiano/weewx-wdc-interceptor-docker/main/src/skin.conf
-
-COPY src/entrypoint.sh src/_version.py ./
-
-FROM python:${PYTHON_VERSION}-slim-bullseye as final-stage
-
-ARG TARGETPLATFORM
-ARG WEEWX_HOME
-ARG WEEWX_UID
-
-# For a list of pre-defined annotation keys and value types see:
-# https://github.com/opencontainers/image-spec/blob/master/annotations.md
-# Note: Additional labels are added by the build workflow.
-LABEL org.opencontainers.image.authors="markf+github@geekpad.com"
-LABEL org.opencontainers.image.vendor="Geekpad"
-LABEL com.weewx.version=${WEEWX_VERSION}
-
-RUN addgroup --system --gid ${WEEWX_UID} weewx \
-  && adduser --system --uid ${WEEWX_UID} --ingroup weewx weewx
-
-RUN apt-get update && apt-get install -y libusb-1.0-0 gosu busybox-syslogd tzdata
-
-WORKDIR ${WEEWX_HOME}
-
-COPY --from=build-stage /opt/venv /opt/venv
-COPY --from=build-stage ${WEEWX_HOME} ${WEEWX_HOME}
-
-RUN mkdir /data && \
-  cp weewx.conf /data && \
-  chown -R weewx:weewx ${WEEWX_HOME}
-
-VOLUME ["/data"]
-
-ENV PATH="/opt/venv/bin:$PATH"
-ENTRYPOINT ["./entrypoint.sh"]
-CMD ["/data/weewx.conf"]
+./bin/weewxd "$@"
