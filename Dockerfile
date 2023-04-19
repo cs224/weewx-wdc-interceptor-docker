@@ -1,24 +1,40 @@
 FROM python:3.10-buster
+# docker build . -t "weewx-wdc:4.10.2"
+# mkdir -p /opt/weewx-wdc/data/duplicati
+# mkdir -p /opt/weewx-wdc/data/weewx/data
+# mkdir -p /opt/weewx-wdc/data/weewx/public_html
+# mkdir -p /opt/weewx-wdc/data/weewx/archive
+# mkdir -p /opt/weewx-wdc/duplicati-backup
+# chown root:dialout /opt/weewx-wdc/data/weewx/data
+# chown root:dialout /opt/weewx-wdc/data/weewx/public_html
+# chown root:dialout /opt/weewx-wdc/data/weewx/archive
+# chmod g+w /opt/weewx-wdc/data/weewx/data
+# chmod g+w /opt/weewx-wdc/data/weewx/public_html
+# chmod g+w /opt/weewx-wdc/data/weewx/archive
+# docker run -it --rm -v $(readlink -f ./data/weewx/archive):/home/weewx/archive -v $(readlink -f ./data/weewx/public_html):/home/weewx/public_html -v $(readlink -f ./data/weewx/data):/data              weewx-wdc:4.10.2 --gen-test-config
+# docker run -it --rm -v $(shell readlink -f ./data/weewx/archive):/home/weewx/archive -v $(shell readlink -f ./data/weewx/public_html):/home/weewx/public_html -v $(shell readlink -f ./data/weewx/data):/data              weewx-wdc --gen-test-config
+# docker run -it --rm -v $(shell readlink -f ./archive):/home/weewx/archive -v $(shell readlink -f ./public_html):/home/weewx/public_html -v $(shell readlink -f ./data):/data -p 9877:9877 weewx-wdc
 
 LABEL org.opencontainers.image.authors="David Baetge <david.baetge@gmail.com>"
 
 ARG WEEWX_VERSION="4.10.2"
 ARG WDC_VERSION="v3.1.1"
-ARG WEEWX_UID=2749
+ARG WEEWX_UID=421
 ENV WEEWX_HOME="/home/weewx"
 
 EXPOSE 9877
 
 COPY src/install-input.txt /tmp/
 COPY src/start.sh /start.sh
+COPY src/entrypoint.sh /entrypoint.sh
 COPY src/weewx-dwd.conf /tmp/weewx-dwd.conf
 RUN chmod +x /start.sh
+RUN chmod +x /entrypoint.sh
 
 # @see https://blog.nuvotex.de/running-syslog-in-a-container/
-RUN apt-get update &&\
-    apt-get install -q -y --no-install-recommends rsyslog=8.1901.0-1+deb10u2 cron=3.0pl1-134+deb10u1 python3-configobj=5.0.6-3 python3-requests=2.21.0-1 python3-paho-mqtt=1.4.0-1 &&\
-    apt-get clean &&\
-    rm -rf /var/lib/apt/lists/*
+# RUN apt-get update && apt-get install -q -y --no-install-recommends rsyslog=8.1901.0-1+deb10u2 cron=3.0pl1-134+deb10u1 python3-configobj=5.0.6-3 python3-requests=2.21.0-1 python3-paho-mqtt=1.4.0-1 && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libusb-1.0-0 gosu busybox-syslogd tzdata cron=3.0pl1-134+deb10u1 python3-configobj=5.0.6-3 python3-requests=2.21.0-1 python3-paho-mqtt=1.4.0-1
+
 
 RUN addgroup --system --gid ${WEEWX_UID} weewx &&\
     adduser --system --uid ${WEEWX_UID} --ingroup weewx weewx
@@ -87,4 +103,11 @@ RUN sed -i -z -e 's|INSERT_SERVER_URL_HERE|mqtt://user:password@host:port\n     
 VOLUME [ "${WEEWX_HOME}/public_html" ]
 VOLUME [ "${WEEWX_HOME}/archive" ]
 
-ENTRYPOINT [ "/start.sh" ]
+RUN mkdir /data && \
+  cp weewx.conf /data && \
+  chown -R weewx:weewx ${WEEWX_HOME}
+
+VOLUME ["/data"]
+
+ENTRYPOINT [ "/entrypoint.sh" ]
+CMD ["/data/weewx.conf"]
