@@ -19,7 +19,7 @@ services:
     ports:
       - "127.0.0.1:2305:80/tcp"
     depends_on:
-      - weewx
+      - weewx-wdc
     environment:
       - TZ=Europe/Berlin
       #- NGINX_HOST=<<YOUR-DOMAIN-NAME>>.com
