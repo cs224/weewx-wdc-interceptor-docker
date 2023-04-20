@@ -78,8 +78,8 @@ RUN wget -nv -O "icons-dwd.zip" "https://www.dwd.de/DE/wetter/warnungen_aktuell/
 
 WORKDIR /tmp/weewx-${WEEWX_VERSION}
 
-RUN pip install --no-cache-dir -r ./requirements.txt &&\
-    pip install --no-cache-dir paho-mqtt==1.6.1 &&\
+# RUN pip install --no-cache-dir -r ./requirements.txt &&\
+RUN pip install --no-cache-dir paho-mqtt==1.6.1 &&\
     python ./setup.py build && python ./setup.py install < /tmp/install-input.txt
 
 WORKDIR ${WEEWX_HOME}
