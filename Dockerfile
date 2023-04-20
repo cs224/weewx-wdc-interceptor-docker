@@ -78,6 +78,8 @@ RUN wget -nv -O "icons-dwd.zip" "https://www.dwd.de/DE/wetter/warnungen_aktuell/
 
 WORKDIR /tmp/weewx-${WEEWX_VERSION}
 
+RUN pip3 install configobj paho-mqtt pyserial pyusb Cheetah3 Pillow==9.4.0 pyephem mysqlclient
+
 # RUN pip install --no-cache-dir -r ./requirements.txt &&\
 RUN pip install --no-cache-dir paho-mqtt==1.6.1 &&\
     python ./setup.py build && python ./setup.py install < /tmp/install-input.txt
