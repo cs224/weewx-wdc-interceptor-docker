@@ -7,11 +7,11 @@ set -o pipefail
 CONF_FILE="/data/weewx.conf"
 
 # Initial weewx-DWD run.
-#mkdir -p /home/weewx/skins/weewx-wdc/dwd
-#/usr/local/bin/wget-dwd
-#/usr/local/bin/dwd-warnings
-#/usr/local/bin/dwd-cap-warnings --config=/home/weewx/weewx.conf --resolution=city
-#/usr/local/bin/dwd-mosmix --config=/home/weewx/weewx.conf --daily --hourly P444
+mkdir -p /home/weewx/skins/weewx-wdc/dwd
+/usr/local/bin/wget-dwd
+/usr/local/bin/dwd-warnings
+/usr/local/bin/dwd-cap-warnings --config=/data/weewx.conf --resolution=city
+/usr/local/bin/dwd-mosmix --config=/data/weewx.conf --daily --hourly P444
 
 # echo version before starting syslog so we don't confound our tests
 if [ "$1" = "--version" ]; then
