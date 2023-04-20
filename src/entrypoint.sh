@@ -25,7 +25,7 @@ if [ "$(id -u)" = 0 ]; then
   # start the syslog daemon as root
   /sbin/syslogd -n -S -O - &
   # start cron
-  service cron start
+  # service cron start
   if [ "${WEEWX_UID:-weewx}" != 0 ]; then
     # drop privileges and restart this script
     echo "Switching uid:gid to ${WEEWX_UID:-weewx}:${WEEWX_GID:-weewx}"
