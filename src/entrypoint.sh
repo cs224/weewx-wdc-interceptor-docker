@@ -17,6 +17,8 @@ if [ "$(id -u)" = 0 ]; then
   ln -snf /usr/share/zoneinfo/"${TIMEZONE:-UTC}" /etc/localtime
   # start the syslog daemon as root
   /sbin/syslogd -n -S -O - &
+  # start cron
+  service cron start
   if [ "${WEEWX_UID:-weewx}" != 0 ]; then
     # drop privileges and restart this script
     echo "Switching uid:gid to ${WEEWX_UID:-weewx}:${WEEWX_GID:-weewx}"
@@ -59,6 +61,13 @@ if [ ! -f "${CONF_FILE}" ]; then
   ./bin/wee_config --reconfigure "${CONF_FILE}"
   exit 1
 fi
+
+# Initial weewx-DWD run.
+mkdir -p /home/weewx/skins/weewx-wdc/dwd
+/usr/local/bin/wget-dwd
+/usr/local/bin/dwd-warnings
+/usr/local/bin/dwd-cap-warnings --config=/home/weewx/weewx.conf --resolution=city
+/usr/local/bin/dwd-mosmix --config=/home/weewx/weewx.conf --daily --hourly P444
 
 ./bin/weewxd "$@"
 
